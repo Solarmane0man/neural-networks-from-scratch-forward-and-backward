@@ -22,7 +22,7 @@ python scaffold.py
 - [x] **10.** train_step
 - [x] **11.** train
 - [x] **12.** design_network
-- [ ] **13.** improve_generalization
+- [x] **13.** improve_generalization
 
 ---
 

@@ -390,6 +390,61 @@ def design_network(input_dim, num_classes, seed=0):
     acc = float(np.mean(model['forward'](x_ev)[0].argmax(axis=1) == y_ev))
     return model, {'accuracy': acc, 'x': x_ev, 'y': y_ev}
 
-# Step 13 - improve_generalization (not yet solved)
-# TODO: implement
+# Step 13 - improve_generalization
+def improve_generalization(baseline_model_fn, x_train, y_train, x_val, y_val, seed=0):
+    """Improve held-out accuracy over an unregularized baseline.
+
+    Inputs:
+      baseline_model_fn: zero-arg callable -> fresh untrained sequential model
+        (dict with 'forward', 'backward', 'params') matching the data dims.
+      x_train, y_train: training features (N, D) and int labels (N,).
+      x_val, y_val: validation features (N_val, D) and int labels (N_val,).
+      seed: int for deterministic training.
+
+    Returns:
+      dict with keys:
+        'val_accuracy': float accuracy of the improved model on x_val/y_val
+        'baseline_val_accuracy': float val accuracy of plain unregularized SGD
+        'predictions': np.ndarray shape (N_val,) int preds from improved model
+        'model': the trained improved model
+
+    Required behavior:
+      val_accuracy > baseline_val_accuracy
+      predictions == argmax(model.forward(x_val), axis=1)
+      val_accuracy == mean(predictions == y_val)
+      predictions are non-constant (not a trivial single-class predictor)
+    """
+    # TODO: your approach here
+    loss_fn = make_loss()
+    batch_size = 16
+
+    def fresh():
+      np.random.seed(seed)
+      return baseline_model_fn()
+    def accuracy(model,x,y):
+      return float(np.mean(model['forward'](x)[0].argmax(axis=1)==y))
+    
+    base = fresh()
+    train(base, loss_fn, make_optimizer(base['params'],lr = 0.1,kind = 'sgd'),x_train,y_train,epochs = 300, batch_size= batch_size,seed=seed)
+    baseline_acc = accuracy(base, x_val, y_val)
+
+    model = fresh()
+    opt = make_optimizer(model['params'], lr=0.05, kind='sgd')
+    rng = np.random.default_rng(seed)
+    weight_decay, noise_std,n = 0.03,0.1,len(x_train)
+    for _ in range(70):
+      perm = rng.permutation(n)
+      for s in range(0,n, batch_size):
+        idx = perm[s:s+batch_size]
+        xb = x_train[idx] + rng.normal(0.0, noise_std,x_train[idx].shape)
+        _, grads = forward_backward(model, loss_fn,xb,y_train[idx])
+        for p,g in zip(model['params'],grads):
+          if 'W' in g:
+            g['W'] = g['W'] +weight_decay*p['W']
+        opt['step'](grads)
+    predictions = model['forward'](x_val)[0].argmax(axis=1)
+    return {'val_accuracy': float(np.mean(predictions == y_val)),
+            'baseline_val_accuracy': baseline_acc,
+            'predictions': predictions,
+            'model': model}
 
